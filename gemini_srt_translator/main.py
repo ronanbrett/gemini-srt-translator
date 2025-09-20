@@ -113,7 +113,17 @@ class GeminiSRTTranslator:
             thoughts_log (bool): Whether to log thoughts to a file
         """
 
+        # Determine the base file for naming - prioritize video_file for output naming
+        # but use input_file for other purposes if video_file is not available
         base_file = input_file or video_file
+        
+        # For output file naming, always use video_file if available to ensure 
+        # the SRT file matches the original video file name
+        output_base_file = video_file or input_file
+        output_base_name = os.path.splitext(os.path.basename(output_base_file))[0] if output_base_file else "translated"
+        output_dir_path = os.path.dirname(output_base_file) if output_base_file else ""
+        
+        # For log files, use the original logic
         base_name = os.path.splitext(os.path.basename(base_file))[0] if base_file else "translated"
         dir_path = os.path.dirname(base_file) if base_file else ""
 
@@ -127,8 +137,9 @@ class GeminiSRTTranslator:
         if output_file:
             self.output_file = output_file
         else:
-            suffix = "_translated.srt" if input_file else ".srt"
-            self.output_file = os.path.join(dir_path, f"{base_name}{suffix}") if dir_path else f"{base_name}{suffix}"
+            # Use video file base name for output SRT file when available
+            suffix = "_translated.srt" if input_file and not video_file else ".srt"
+            self.output_file = os.path.join(output_dir_path, f"{output_base_name}{suffix}") if output_dir_path else f"{output_base_name}{suffix}"
 
         self.progress_file = os.path.join(dir_path, f"{base_name}.progress") if dir_path else f"{base_name}.progress"
 

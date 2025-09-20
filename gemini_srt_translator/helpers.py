@@ -35,6 +35,15 @@ def get_instruction(
         f"Do NOT move or merge 'content' between objects.\n"
         f"Do NOT add or remove any objects.\n"
         f"Do NOT alter the 'index' field.\n"
+        f"\n"
+        f"IMPORTANT - DIALOGUE ONLY FILTER:\n"
+        f"- ONLY translate actual spoken dialogue between characters\n"
+        f"- SKIP all sound effects, music, background noise descriptions\n"
+        f"- SKIP text like: [moaning], [music], [sound], [breathing], [thudding], etc.\n"
+        f"- SKIP onomatopoeia and non-verbal sounds\n"
+        f"- SKIP descriptive text that describes actions rather than speech\n"
+        f"- If a subtitle contains only non-dialogue content, leave the 'content' field EMPTY\n"
+        f"- Only translate clear spoken words and conversations\n"
     )
 
     if audio_file:
