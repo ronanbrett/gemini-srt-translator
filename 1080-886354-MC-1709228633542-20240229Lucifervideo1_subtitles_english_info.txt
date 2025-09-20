@@ -1,0 +1,7 @@
+SRT Subtitles Generated to English
+==================================================
+Source Video: 1080-886354-MC-1709228633542-20240229Lucifervideo1.mp4
+Target Language: English
+Model: gemini-2.5-flash-preview-05-20
+Generated: 2025-09-20 17:49:54
+SRT File: 1080-886354-MC-1709228633542-20240229Lucifervideo1_subtitles_english.srt
