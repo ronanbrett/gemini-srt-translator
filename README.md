@@ -136,6 +136,9 @@ gst translate -v movie.mp4 -l Spanish
 # Extract and use audio from video for context (requires FFmpeg)
 gst translate -v movie.mp4 -l Spanish --extract-audio
 
+# Translate Italian audio to English
+gst translate -v italian_video.mp4 -f Italian -l English --extract-audio
+
 # Interactive model selection
 gst translate -i subtitle.srt -l "Brazilian Portuguese" --interactive
 
@@ -146,27 +149,9 @@ gst translate -i subtitle.srt -l French --start-line 20
 gst translate -i subtitle.srt -l French --quiet
 ```
 
-#### Advanced Options
-
-```bash
-# Full-featured translation with custom settings
-gst translate \
-  -i input.srt \
-  -v video.mp4 \
-  -l French \
-  -k YOUR_API_KEY \
-  -k2 YOUR_SECOND_API_KEY \
-  -o output_french.srt \
-  --model gemini-2.5-pro \
-  --batch-size 150 \
-  --temperature 0.7 \
-  --description "Medical TV series, use medical terminology" \
-  --progress-log \
-  --thoughts-log \
-  --extract-audio \
-```
-
 #### CLI Help
+
+For a full list of commands and options, use the `--help` flag:
 
 ```bash
 # Show all available commands and options
@@ -174,6 +159,7 @@ gst --help
 
 # Show specific command help
 gst translate --help
+gst list-models --help
 ```
 
 ### 🐍 Using Python API
@@ -208,6 +194,69 @@ gst.translate()
 ---
 
 ## ⚙️ Advanced Configuration
+
+
+###  CLI Reference
+
+<details>
+<summary>Click to expand CLI options</summary>
+
+```
+usage: gst translate [-h] [-i INPUT_FILE] [-v VIDEO_FILE] [-l TARGET_LANGUAGE] [-f SOURCE_LANGUAGE] [-k API_KEY] [-k2 API_KEY2] [-o OUTPUT_FILE] [-a AUDIO_FILE] [-s START_LINE]
+                     [-d DESCRIPTION] [-m MODEL] [-b BATCH_SIZE] [--temperature TEMPERATURE] [--top-p TOP_P] [--top-k TOP_K] [--thinking-budget THINKING_BUDGET] [--no-streaming]
+                     [--no-thinking] [--skip-upgrade] [--no-colors] [--progress-log] [--thoughts-log] [--quiet] [--resume] [--no-resume] [--paid-quota] [--interactive]
+                     [--extract-audio]
+
+Translate subtitle files
+
+options:
+  -h, --help            show this help message and exit
+  -l, --target-language TARGET_LANGUAGE
+                        Target language for translation
+  -f, --source-language SOURCE_LANGUAGE
+                        Source language (auto-detected if not specified)
+  -k, --api-key API_KEY
+                        Gemini API key
+  -k2, --api-key2 API_KEY2
+                        Secondary Gemini API key for additional quota
+  -o, --output-file OUTPUT_FILE
+                        Output file path
+  -a, --audio-file AUDIO_FILE
+                        Audio file for context
+  -s, --start-line START_LINE
+                        Starting line number
+  -d, --description DESCRIPTION
+                        Description for translation context
+  -m, --model MODEL     Gemini model to use
+  -b, --batch-size BATCH_SIZE
+                        Batch size for translation
+  --temperature TEMPERATURE
+                        Temperature (0.0-2.0)
+  --top-p TOP_P         Top P (0.0-1.0)
+  --top-k TOP_K         Top K (>=0)
+  --thinking-budget THINKING_BUDGET
+                        Thinking budget (0-24576)
+  --no-streaming        Disable streaming
+  --no-thinking         Disable thinking mode
+  --skip-upgrade        Skip upgrade check
+  --no-colors           Disable colored output
+  --progress-log        Enable progress logging
+  --thoughts-log        Enable thoughts logging
+  --quiet               Suppress output
+  --resume              Resume interrupted translation
+  --no-resume           Start from beginning
+  --paid-quota          Remove artificial limits for paid quota users
+  --interactive         Interactive model selection
+  --extract-audio       Extract audio from video for context
+
+required arguments:
+  -i, --input-file INPUT_FILE
+                        Input SRT file path
+  -v, --video-file VIDEO_FILE
+                        Video file path (for SRT/Audio extraction)
+```
+
+</details>
 
 #### 🔧 GST Parameters
 
