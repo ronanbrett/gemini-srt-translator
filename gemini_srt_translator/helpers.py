@@ -40,6 +40,9 @@ def get_instruction(
     if audio_file:
         instruction += (
             f"\nYou will also receive an audio file.\n"
+            f"Focus on transcribing the spoken words accurately.\n"
+            f"Ignore any non-verbal sounds like moans, grunts, or background noise.\n"
+            f"Your primary goal is to capture the dialogue for translation.\n\n"
             f"Use the time_start and time_end of each object to analyze the audio.\n"
             f"Analyze the speaker's voice in the audio to determine gender, then apply grammatical gender rules for {language}:\n"
             f"1. Listen for voice characteristics to identify if speaker is male/female:\n"
