@@ -29,6 +29,7 @@ from gemini_srt_translator.logger import (
     save_logs_to_file,
     save_thoughts_to_file,
     set_color_mode,
+    success,
     success_with_progress,
     update_loading_animation,
     warning,
@@ -64,6 +65,7 @@ class GeminiSRTTranslator:
         gemini_api_key: str = None,
         gemini_api_key2: str = None,
         target_language: str = None,
+        source_language: str = None,
         input_file: str = None,
         output_file: str = None,
         video_file: str = None,
@@ -92,6 +94,7 @@ class GeminiSRTTranslator:
             gemini_api_key (str): Primary Gemini API key
             gemini_api_key2 (str): Secondary Gemini API key for additional quota
             target_language (str): Target language for translation
+            source_language (str): Source language (auto-detected if not specified)
             input_file (str): Path to input subtitle file
             output_file (str): Path to output translated subtitle file
             video_file (str): Path to video file for srt/audio extraction
@@ -133,6 +136,7 @@ class GeminiSRTTranslator:
         self.gemini_api_key2 = gemini_api_key2
         self.current_api_key = gemini_api_key
         self.target_language = target_language
+        self.source_language = source_language
         self.input_file = input_file
         self.video_file = video_file
         self.audio_file = audio_file
@@ -298,9 +302,20 @@ class GeminiSRTTranslator:
                 exit(1)
             self.input_file = extract_srt_from_video(self.video_file)
             if not self.input_file:
-                error("Failed to extract subtitles from video file.", ignore_quiet=True)
-                exit(1)
-            self.srt_extracted = True
+                # No subtitles available, check if we have audio to work with
+                if not self.audio_file and not self.extract_audio:
+                    error("No subtitles found in video file and no audio processing requested. Please use --extract-audio to enable audio-based translation.", ignore_quiet=True)
+                    exit(1)
+                else:
+                    info("No subtitles found in video file. Using audio-only translation with Gemini...")
+                    # Use the extracted audio directly with Gemini for translation
+                    if not self.audio_file and self.extract_audio:
+                        # The audio will be extracted above in the earlier video_file + extract_audio check
+                        pass
+                    # Skip subtitle file requirement for audio-only translation
+                    return self._translate_audio_only()
+            else:
+                self.srt_extracted = True
 
         if not self.current_api_key:
             error("Please provide a valid Gemini API key.", ignore_quiet=True)
@@ -877,3 +892,166 @@ class GeminiSRTTranslator:
         rtl_count = count["R"] + count["AL"] + count["RLE"] + count["RLI"]
         ltr_count = count["L"] + count["LRE"] + count["LRI"]
         return "rtl" if rtl_count > ltr_count else "ltr"
+
+    def _translate_audio_only(self) -> None:
+        """
+        Handle audio-only translation using Gemini's audio processing capabilities.
+        This method generates SRT subtitles directly from audio without requiring subtitle files.
+        """
+        if not self.current_api_key:
+            error("Please provide a valid Gemini API key.", ignore_quiet=True)
+            exit(1)
+
+        if not self.target_language:
+            error("Please provide a target language.", ignore_quiet=True)
+            exit(1)
+
+        if not self.audio_file:
+            error("No audio file available for translation.", ignore_quiet=True)
+            exit(1)
+
+        if not os.path.exists(self.audio_file):
+            error(f"Audio file {self.audio_file} does not exist.", ignore_quiet=True)
+            exit(1)
+
+        # Load audio file for Gemini processing
+        try:
+            with open(self.audio_file, "rb") as f:
+                audio_bytes = f.read()
+                self.audio_part = types.Part.from_bytes(data=audio_bytes, mime_type="audio/mpeg")
+        except Exception as e:
+            error(f"Failed to load audio file: {e}", ignore_quiet=True)
+            exit(1)
+
+        # Validate model availability
+        models = self.getmodels()
+        if self.model_name not in models:
+            error(f"Model {self.model_name} is not available. Please choose a different model.", ignore_quiet=True)
+            exit(1)
+
+        info(f"Processing audio file: {os.path.basename(self.audio_file)}")
+        if self.source_language:
+            info(f"Source language: {self.source_language}")
+        else:
+            info(f"Source language: Auto-detect")
+        info(f"Target language: {self.target_language}")
+        info(f"Using model: {self.model_name}")
+
+        try:
+            # Create the translation request
+            client = self._get_client()
+            
+            # Create audio-specific instruction for SRT subtitle generation
+            source_lang_text = f" from {self.source_language}" if self.source_language else ""
+            audio_instruction = f"""
+You are a professional translator and subtitle creator. Please listen to the audio and generate SRT subtitle format{source_lang_text} to {self.target_language}.
+
+Instructions:
+1. Listen to and transcribe the audio content accurately{f' (in {self.source_language})' if self.source_language else ''}
+2. Translate the transcribed content to {self.target_language}
+3. Create properly formatted SRT subtitles with:
+   - Sequential numbering (1, 2, 3, etc.)
+   - Accurate timestamps in format: HH:MM:SS,mmm --> HH:MM:SS,mmm
+   - Natural subtitle breaks (max 2 lines, ~40-50 characters per line)
+   - Proper timing to match speech patterns
+4. Maintain the original meaning, tone, and context
+5. Break long sentences into readable subtitle segments
+6. Use natural, fluent {self.target_language} translation
+7. Ensure timestamps don't overlap between subtitles
+
+Output format example:
+1
+00:00:00,000 --> 00:00:03,500
+First subtitle text here
+
+2
+00:00:03,500 --> 00:00:07,200
+Second subtitle text here
+
+{f'Additional context: {self.description}' if self.description else ''}
+{f'Source language: {self.source_language}' if self.source_language else 'Source language: Auto-detect'}
+Target language: {self.target_language}
+
+Please provide ONLY the SRT format output, no additional commentary.
+"""
+
+            # Prepare the content for Gemini
+            parts = [types.Part(text=audio_instruction), self.audio_part]
+            content = types.Content(role="user", parts=parts)
+            
+            # Configure for audio translation (no JSON schema needed)
+            sys_instruction = f"You are a professional translator specializing in {'multilingual' if not self.source_language else self.source_language + ' to ' + self.target_language} translation. Provide accurate, natural translations while preserving the original meaning and tone."
+            config = types.GenerateContentConfig(
+                safety_settings=get_safety_settings(),
+                temperature=self.temperature or 0.1,  # Lower temperature for more accurate translation
+                top_p=self.top_p,
+                top_k=self.top_k,
+                system_instruction=sys_instruction
+            )
+
+            info("Sending audio to Gemini for SRT subtitle generation...")
+            
+            if self.streaming:
+                response = client.models.generate_content_stream(
+                    model=self.model_name, contents=[content], config=config
+                )
+                
+                srt_content = ""
+                print("\n" + "="*50)
+                print(f"GENERATING SRT SUBTITLES ({self.source_language or 'Auto-detect'} → {self.target_language.upper()}):")
+                print("="*50)
+                
+                for chunk in response:
+                    if chunk.candidates and chunk.candidates[0].content.parts:
+                        for part in chunk.candidates[0].content.parts:
+                            if part.text:
+                                print(part.text, end='', flush=True)
+                                srt_content += part.text
+                
+                print("\n" + "="*50)
+            else:
+                response = client.models.generate_content(
+                    model=self.model_name, contents=[content], config=config
+                )
+                
+                srt_content = response.text or "No subtitles generated"
+                print("\n" + "="*50)
+                print(f"GENERATING SRT SUBTITLES ({self.source_language or 'Auto-detect'} → {self.target_language.upper()}):")
+                print("="*50)
+                print(srt_content[:500] + "..." if len(srt_content) > 500 else srt_content)
+                print("="*50)
+            
+            # Save SRT subtitle file
+            base_name = os.path.splitext(os.path.basename(self.video_file or self.audio_file))[0]
+            source_part = f"{self.source_language.lower().replace(' ', '_')}_to_" if self.source_language else ""
+            output_path = f"{base_name}_subtitles_{source_part}{self.target_language.lower().replace(' ', '_')}.srt"
+            
+            with open(output_path, 'w', encoding='utf-8') as f:
+                # Write the SRT content directly (Gemini should provide properly formatted SRT)
+                f.write(srt_content)
+            
+            # Also create a metadata file for reference
+            metadata_path = f"{base_name}_subtitles_{source_part}{self.target_language.lower().replace(' ', '_')}_info.txt"
+            with open(metadata_path, 'w', encoding='utf-8') as f:
+                subtitle_title = f"SRT Subtitles Generated{' from ' + self.source_language if self.source_language else ''} to {self.target_language}"
+                f.write(f"{subtitle_title}\n")
+                f.write("="*50 + "\n")
+                f.write(f"Source Video: {os.path.basename(self.video_file or self.audio_file)}\n")
+                if self.source_language:
+                    f.write(f"Source Language: {self.source_language}\n")
+                f.write(f"Target Language: {self.target_language}\n")
+                f.write(f"Model: {self.model_name}\n")
+                f.write(f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"SRT File: {output_path}\n")
+            
+            success(f"SRT subtitles generated! Saved to: {output_path}")
+            info(f"Metadata saved to: {metadata_path}")
+            
+            # Clean up extracted audio if it was created from video
+            if self.audio_extracted and os.path.exists(self.audio_file):
+                os.remove(self.audio_file)
+                info(f"Cleaned up temporary audio file: {os.path.basename(self.audio_file)}")
+                
+        except Exception as e:
+            error(f"Audio translation failed: {e}", ignore_quiet=True)
+            exit(1)

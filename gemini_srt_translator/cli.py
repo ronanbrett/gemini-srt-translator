@@ -76,6 +76,10 @@ def cmd_translate(args) -> None:
 
     # Set target language
     gst.target_language = args.target_language or input("Enter target language: ").strip()
+    
+    # Set source language (optional)
+    if hasattr(args, 'source_language') and args.source_language:
+        gst.source_language = args.source_language
 
     # Model selection
     if args.model:
@@ -170,6 +174,9 @@ Examples:
   # Extract and use audio from video for context (requires FFmpeg)
     gst translate -v movie.mp4 -l Spanish --extract-audio
 
+  # Translate Italian audio to English
+    gst translate -v italian_video.mp4 -f Italian -l English --extract-audio
+
   # Interactive model selection
     gst translate -i subtitle.srt -l "Brazilian Portuguese" --interactive
 
@@ -195,6 +202,7 @@ Examples:
     required_group.add_argument("-v", "--video-file", help="Video file path (for SRT/Audio extraction)")
 
     translate_parser.add_argument("-l", "--target-language", help="Target language for translation")
+    translate_parser.add_argument("-f", "--source-language", help="Source language (auto-detected if not specified)")
     translate_parser.add_argument("-k", "--api-key", help="Gemini API key")
 
     # Optional arguments

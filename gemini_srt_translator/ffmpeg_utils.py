@@ -404,15 +404,34 @@ def prepare_audio(video_path, isolate_voice=False):
         sys.exit(1)
 
 
+def check_subtitle_streams(video_path) -> bool:
+    """
+    Check if a video file has subtitle streams.
+    Returns True if subtitle streams exist, False otherwise.
+    """
+    try:
+        cmd = ["ffprobe", "-v", "quiet", "-select_streams", "s", "-show_entries", "stream=index", "-of", "csv=p=0", video_path]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, encoding="utf-8")
+        return bool(result.stdout.strip())
+    except subprocess.CalledProcessError:
+        return False
+
+
 def extract_srt_from_video(video_path) -> str:
     """
     Extract SRT subtitles from a video file using FFmpeg.
-    Returns the path to the extracted SRT file.
+    Returns the path to the extracted SRT file, or empty string if no subtitles exist.
     """
     base_name = os.path.splitext(os.path.basename(video_path))[0]
     srt_path = os.path.join(os.path.dirname(video_path), f"{base_name}_extracted.srt")
     if os.path.exists(srt_path):
         return srt_path
+    
+    # Check if video has subtitle streams before attempting extraction
+    if not check_subtitle_streams(video_path):
+        info("No subtitle streams found in video file. Skipping subtitle extraction...")
+        return ""
+    
     cmd = ["ffmpeg", "-v", "quiet", "-i", video_path, "-map", "0:s:0", "-c:s", "srt", srt_path]
     try:
         info("Extracting subtitles from video file...")
